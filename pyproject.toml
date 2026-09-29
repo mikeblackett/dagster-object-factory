@@ -1,0 +1,50 @@
+[project]
+name = "dagster-object-factory"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Mike Blackett", email = "27811528+mikeblackett@users.noreply.github.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "dagster>=1.13.24",
+]
+
+[dependency-groups]
+dev = [
+    "coverage>=7.16.1",
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "ruff>=0.16.9",
+]
+
+[project.optional-dependencies]
+xclim = [
+    "xarray>=2026.7.0",
+    "xclim>=0.62.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.29,<0.10.0"]
+build-backend = "uv_build"
+
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+
+[tool.ruff.format]
+docstring-code-format = true
+docstring-code-line-length = 79
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "I", "UP", "TRY"]
+extend-ignore = ["TRY301"]
+
+[tool.uv.workspace]
+members = [
+    "examples",
+]
+
+
