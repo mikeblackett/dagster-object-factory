@@ -1,6 +1,6 @@
 [project]
 name = "dagster-object-factory"
-version = "0.1.0"
+version = "0.2.0"
 description = "Add your description here"
 readme = "README.md"
 authors = [
@@ -39,8 +39,7 @@ docstring-code-format = true
 docstring-code-line-length = 79
 
 [tool.ruff.lint]
-select = ["E", "F", "B", "I", "UP", "TRY"]
-extend-ignore = ["TRY301"]
+extend-ignore = []
 
 [tool.uv.workspace]
 members = [

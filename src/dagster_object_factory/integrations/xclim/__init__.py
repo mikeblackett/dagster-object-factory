@@ -11,7 +11,7 @@ from dagster_object_factory.integrations.xclim.translators import (
 
 __all__ = [
     "DagsterXclimIndicatorTranslator",
+    "ResamplingPartitionsDefinition",
     "XclimIndicatorFactory",
     "XclimResamplingIndicatorFactory",
-    "ResamplingPartitionsDefinition",
 ]

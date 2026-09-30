@@ -28,17 +28,21 @@ class XclimIndicatorFactory[T: xc.Indicator](ObjectFactoryComponent[T, xr.DataAr
         obj: T,
         ins: Mapping[str, xr.DataArray],
         **kwargs,
-    ) -> xr.DataArray:
-        result = cast(xr.DataArray, obj(**ins, **kwargs))
-        result = result.chunk(self.get_chunks(result))
+    ) -> xr.DataArray | tuple[xr.DataArray, ...]:
+        result = obj(**ins, **kwargs)
+        if isinstance(result, tuple):
+            chunked = tuple(data.chunk(self.get_chunks(data)) for data in result)
+            return cast(tuple[xr.DataArray, ...], chunked)
+        data = cast(xr.DataArray, result)
+        result = data.chunk(self.get_chunks(data))
         return result
 
     def get_metadata(
-        self, context: dg.AssetExecutionContext, result: xr.DataArray
+        self, context: dg.AssetExecutionContext, value: xr.DataArray
     ) -> dict[str, dg.MetadataValue]:
         return {
-            **super().get_metadata(context, result),
-            "nbytes": dg.MetadataValue.int(result.nbytes),
+            **super().get_metadata(context, value),
+            "nbytes": dg.MetadataValue.int(value.nbytes),
         }
 
     def get_chunks(self, obj: xr.DataArray) -> Chunks:
@@ -57,14 +61,20 @@ class XclimResamplingIndicatorFactory(XclimIndicatorFactory[xc.ResamplingIndicat
         ):
             freq = self.get_partition_key(context, "freq")
         else:
-            raise
+            raise dg.DagsterInvalidDefinitionError(
+                f"{obj.identifier}: no frequency configured: set 'freq' in "
+                "injected_parameters or use a ResamplingPartitionsDefinition."
+            )
 
         allowed_periods = obj.allowed_periods
         if allowed_periods is None:
             return freq
         period = xcal.parse_offset(freq)[1]
         if period not in allowed_periods:
-            raise
+            raise ValueError(
+                f"{obj.identifier}: frequency {freq!r} has period {period!r}, "
+                f"which is not allowed (allowed: {allowed_periods!r})."
+            )
         return freq
 
     def resolve_execution_kwargs(

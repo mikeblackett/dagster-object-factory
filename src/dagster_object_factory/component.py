@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -27,7 +27,7 @@ class ObjectFactoryComponent[T, R](dg.Component, ABC):
         obj: T,
         ins: Mapping[str, Any],
         **kwargs,
-    ) -> R: ...
+    ) -> R | Sequence[R]: ...
 
     def resolve_execution_kwargs(
         self, context: dg.AssetExecutionContext, obj: T
@@ -52,27 +52,33 @@ class ObjectFactoryComponent[T, R](dg.Component, ABC):
         context: dg.ComponentLoadContext,
         obj: T,
     ) -> dg.AssetsDefinition:
+        translation = self.translator(obj)
 
         @dg.multi_asset(
-            name=self.translator.get_asset_key(obj).to_python_identifier(),
-            ins=self.translator.get_asset_ins(obj),
-            deps=self.translator.get_extra_deps(obj),
-            outs=self.translator.to_asset_outs(obj, io_manager_key=self.io_manager_key),
+            name=translation.name,
+            description=translation.description,
+            ins=translation.get_asset_ins(),
+            deps=translation.get_extra_deps(),
+            outs=translation.get_asset_outs(io_manager_key=self.io_manager_key),
+            partitions_def=translation.partitions_def,
             required_resource_keys=self.get_required_resource_keys(),
-            partitions_def=self.translator.get_partitions_def(obj),
         )
         def _asset(
             context: dg.AssetExecutionContext, **ins: Any
-        ) -> dg.MaterializeResult[R]:
+        ) -> Iterator[dg.MaterializeResult[R]]:
             kwargs = self.resolve_execution_kwargs(context, obj)
             result = self.execute(context, obj, ins, **kwargs)
-            metadata = self.get_metadata(context, result)
-            return dg.MaterializeResult(value=result, metadata=metadata)
+            for output_name, value in translation.iter_output_values(result):
+                yield dg.MaterializeResult(
+                    value=value,
+                    asset_key=translation.keys_by_output_name[output_name],
+                    metadata=self.get_metadata(context, value),
+                )
 
         return _asset
 
     def get_metadata(
-        self, context: dg.AssetExecutionContext, result: R
+        self, context: dg.AssetExecutionContext, value: R
     ) -> dict[str, dg.MetadataValue]:
         return {}
 

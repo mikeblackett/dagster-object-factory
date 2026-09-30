@@ -10,7 +10,7 @@ _resampler = xr.tutorial.open_dataset("air_temperature", cache=True).air.resampl
 layer = Layer(
     name="variables",
     key_prefix=("variables",),
-    output_names=frozenset({"tas", "tasmin", "tasmax"}),
+    output_names=frozenset({"tas", "tasmin", "tasmax", "ua"}),
     python_type=xr.DataArray,
 )
 
@@ -28,3 +28,8 @@ def tasmin() -> xr.DataArray:
 @dg.asset(key_prefix=layer.key_prefix)
 def tasmax() -> xr.DataArray:
     return _resampler.max()
+
+
+@dg.asset(key_prefix=layer.key_prefix)
+def ua() -> xr.DataArray:
+    return xr.DataArray()

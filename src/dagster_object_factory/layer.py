@@ -24,7 +24,7 @@ class Layer[R]:
     def resolve_key(self, output_name: str) -> dg.AssetKey:
         if output_name not in self:
             raise ValueError(
-                f"{output_name!r} is not a known output of layer {self.name!r}."
+                f"{output_name!r} is not a declared output of layer {self.name!r}."
             )
         return dg.AssetKey(output_name).with_prefix(self.key_prefix)
 

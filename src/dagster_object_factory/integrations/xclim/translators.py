@@ -1,5 +1,4 @@
 from collections.abc import Generator, Mapping
-from dataclasses import dataclass
 from typing import Final, cast
 
 import dagster as dg
@@ -19,12 +18,15 @@ DEFAULT_KEYWORD_SEPARATOR: Final = None
 DEFAULT_SRC_FREQ: Final = "D"
 
 
-@dataclass(frozen=True, eq=False)
 class DagsterXclimIndicatorTranslator[T: xc.Indicator](
     DagsterObjectTranslator[T, xr.DataArray]
 ):
     def get_name(self, obj: T) -> str:
         return cast(str, obj.identifier)
+
+    def get_output_names(self, obj: T) -> tuple[str, ...]:
+        names = tuple(output["var_name"] for output in obj.cf_attrs)
+        return names or (self.get_name(obj),)
 
     def get_description(self, obj: T) -> str | None:
         if obj.title is None:
@@ -33,6 +35,14 @@ class DagsterXclimIndicatorTranslator[T: xc.Indicator](
         if obj.abstract:
             description += f"\n\n{obj.abstract}"
         return description
+
+    def get_descriptions_by_output_name(self, obj: T) -> Mapping[str, str | None]:
+        if obj.n_outs == 1:
+            return super().get_descriptions_by_output_name(obj)
+        values = [
+            (output["var_name"], output["description"]) for output in obj.cf_attrs
+        ]
+        return dict(values)
 
     def resolve_dependency_specs(self, obj: T) -> Generator[DependencySpec]:
         parameters = cast(dict[str, xc.Parameter], obj.parameters)
