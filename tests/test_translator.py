@@ -2,7 +2,7 @@ import pytest
 import xarray as xr
 import xclim.indicators.atmos as indicators
 
-from dagster_object_factory import Layer, LayerDependency
+from dagster_object_factory import Layer, LayerDep
 from dagster_object_factory.integrations.xclim import (
     DagsterXclimIndicatorTranslator,
 )
@@ -10,15 +10,15 @@ from dagster_object_factory.integrations.xclim import (
 JETSTREAM_OUTPUTS = ["jetlat", "jetstr"]
 
 
-def _translator(output_names, key_prefix=("indicators",), sources=None):
+def _translator(output_names, key_prefix=("indicators",), layer_deps=None):
     layer = Layer(
         name="indicators",
         key_prefix=key_prefix,
         output_names=frozenset(output_names),
         python_type=xr.DataArray,
-        sources=sources
-        if sources is not None
-        else (LayerDependency(layer=_variables_layer()),),
+        layer_deps=layer_deps
+        if layer_deps is not None
+        else (LayerDep(layer=_variables_layer()),),
     )
     return DagsterXclimIndicatorTranslator(layer=layer)
 

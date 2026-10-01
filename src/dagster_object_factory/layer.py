@@ -10,7 +10,7 @@ import dagster as dg
 
 @dataclass(frozen=True, kw_only=True, eq=False)
 class Layer[R]:
-    """A group of assets with a shared key space, output type, and dependency sources.
+    """A group of assets with a shared key space, output type, and layer dependencies.
 
     A translator maps each object to a multi-asset whose outputs must be
     declared up front in ``output_names``; resolving an undeclared output
@@ -23,7 +23,7 @@ class Layer[R]:
         output_names: Names of the outputs the layer produces.
         python_type: Python type shared by all of the layer's outputs.
         partitions_def: Partitions definition applied to the layer's assets.
-        sources: Upstream layers this layer depends on.
+        layer_deps: Upstream layers this layer depends on.
     """
 
     name: str
@@ -32,9 +32,8 @@ class Layer[R]:
     output_names: frozenset[str]
     python_type: type[R]
     partitions_def: dg.PartitionsDefinition | None = None
-    sources: "tuple[LayerDependency, ...]" = field(default_factory=tuple)
+    layer_deps: "tuple[LayerDep, ...]" = field(default_factory=tuple)
 
-    # TODO: Rename `sources` to `layer_dependencies` or `layer_deps`?
     def __contains__(self, output_name: str) -> bool:
         """Return whether ``output_name`` is a declared output of the layer."""
         return output_name in self.output_names
@@ -58,8 +57,8 @@ class Layer[R]:
             )
         return dg.AssetKey(output_name).with_prefix(self.key_prefix)
 
-    def resolve_source(self, output_name: str) -> "LayerDependency | None":
-        """Find the source that produces an output.
+    def resolve_layer_dep(self, output_name: str) -> "LayerDep | None":
+        """Find the layer dep that produces an output.
 
         Args:
             output_name: Name of the output.
@@ -68,13 +67,12 @@ class Layer[R]:
             The layer dependency that produces the output, or None if none does.
 
         Raises:
-            ValueError: If more than one source produces the output.
+            ValueError: If more than one layer dep produces the output.
         """
-        # TODO: Rename this method `find_source`? This would make a distinction between resolving (can't fail) and finding (can fail)
-        matches = [s for s in self.sources if output_name in s.layer]
+        matches = [s for s in self.layer_deps if output_name in s.layer]
         if len(matches) > 1:
             raise ValueError(
-                f"{output_name!r} is ambiguous across sources:"
+                f"{output_name!r} is ambiguous across layer_deps:"
                 f" {[s.layer.name for s in matches]!r} (layer {self.name!r})."
             )
         return matches[0] if matches else None
@@ -82,7 +80,7 @@ class Layer[R]:
 
 @dataclass(frozen=True, kw_only=True)
 class DependencySpec:
-    """Specifies a dependency on an output of a source layer.
+    """Specifies a dependency on an output of an upstream layer.
 
     A spec renders as an ``AssetDep`` via ``to_dep``, which records the
     dependency without passing a value, or as an ``AssetIn`` via ``to_in``,
@@ -93,13 +91,13 @@ class DependencySpec:
         layer: Layer the upstream output belongs to.
         partition_mapping: Partition mapping applied to the dependency.
         metadata: Metadata attached to the dependency.
-        parameter_name: Name of the asset input the dependency feeds. Ellipsis
+        input_name: Name of the asset input the dependency feeds. Ellipsis
             (the default) reuses ``output_name``; None makes the dependency
             input-less, so it is emitted as an ``AssetDep`` rather than an
             ``AssetIn``.
 
     Attributes:
-        input_name: Resolved input name; None for input-less dependencies.
+        resolved_input_name: Resolved input name; None for input-less dependencies.
         key: Asset key of the upstream output.
     """
 
@@ -107,18 +105,18 @@ class DependencySpec:
     layer: Layer
     partition_mapping: dg.PartitionMapping | None = None
     metadata: Mapping[str, Any] | None = None
-    parameter_name: InitVar[str | EllipsisType | None] = ...
+    input_name: InitVar[str | EllipsisType | None] = ...
 
-    input_name: str | None = field(init=False)
+    resolved_input_name: str | None = field(init=False)
     key: dg.AssetKey = field(init=False)
 
-    def __post_init__(self, parameter_name: str | EllipsisType | None) -> None:
+    def __post_init__(self, input_name: str | EllipsisType | None) -> None:
         # fail fast if ``output_name`` is not a member of ``layer``
         object.__setattr__(self, "key", self.layer.resolve_key(self.output_name))
         object.__setattr__(
             self,
-            "input_name",
-            self.output_name if parameter_name is ... else parameter_name,
+            "resolved_input_name",
+            self.output_name if input_name is ... else input_name,
         )
 
     def to_dep(self, metadata: Mapping[str, Any] | None = None) -> dg.AssetDep:
@@ -157,8 +155,8 @@ class DependencySpec:
 
 
 @dataclass(frozen=True, kw_only=True)
-class LayerDependency:
-    """A source layer whose outputs the layer's assets may depend on, along
+class LayerDep:
+    """An upstream layer whose outputs the layer's assets may depend on, along
     with the partition mapping shared by every dependency resolved from it.
 
     Args:
@@ -167,7 +165,6 @@ class LayerDependency:
             resolved from the layer.
     """
 
-    # TODO: Rename `LayerDependency` to `LayerDep` to better match dagster style e.g. `AssetDep`?
     layer: Layer
     partition_mapping: dg.PartitionMapping | None = None
 
@@ -192,7 +189,7 @@ class LayerDependency:
         return DependencySpec(
             output_name=output_name,
             layer=self.layer,
-            parameter_name=input_name,
+            input_name=input_name,
             partition_mapping=self.partition_mapping,
             metadata=metadata,
         )

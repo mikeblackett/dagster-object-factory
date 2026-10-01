@@ -2,7 +2,7 @@ import dagster as dg
 import xarray as xr
 import xclim.indicators.atmos as indicators
 
-from dagster_object_factory import Layer, LayerDependency
+from dagster_object_factory import Layer, LayerDep
 from dagster_object_factory.integrations.xclim import (
     DagsterXclimIndicatorTranslator,
     ResamplingPartitionsDefinition,
@@ -17,7 +17,7 @@ single = Layer(
     key_prefix=("indicators", "single"),
     output_names=frozenset({"frost_days"}),
     python_type=xr.DataArray,
-    sources=(LayerDependency(layer=variable_layer),),
+    layer_deps=(LayerDep(layer=variable_layer),),
     partitions_def=ResamplingPartitionsDefinition(["MS", "QS-NOV", "YS"]),
 )
 
@@ -26,7 +26,7 @@ multi = Layer(
     key_prefix=("indicators", "multi"),
     output_names=frozenset({"jetlat", "jetstr"}),
     python_type=xr.DataArray,
-    sources=(LayerDependency(layer=variable_layer),),
+    layer_deps=(LayerDep(layer=variable_layer),),
 )
 
 

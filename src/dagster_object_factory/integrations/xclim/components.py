@@ -59,7 +59,7 @@ class XclimIndicatorFactory[T: xc.Indicator](ObjectFactoryComponent[T, xr.DataAr
         result = data.chunk(self.get_chunks(data))
         return result
 
-    def get_metadata(
+    def get_result_metadata(
         self, context: dg.AssetExecutionContext, value: xr.DataArray
     ) -> dict[str, dg.MetadataValue]:
         """Return the execution metadata of a materialized output value.
@@ -73,15 +73,15 @@ class XclimIndicatorFactory[T: xc.Indicator](ObjectFactoryComponent[T, xr.DataAr
             in bytes.
         """
         return {
-            **super().get_metadata(context, value),
+            **super().get_result_metadata(context, value),
             "nbytes": dg.MetadataValue.int(value.nbytes),
         }
 
-    def get_chunks(self, obj: xr.DataArray) -> Chunks:
+    def get_chunks(self, data: xr.DataArray) -> Chunks:
         """Return the chunks to apply to an output.
 
         Args:
-            obj: The DataArray to chunk.
+            data: The DataArray to chunk.
 
         Returns:
             The chunk spec passed to ``DataArray.chunk``. Defaults to None.
@@ -120,15 +120,15 @@ class XclimResamplingIndicatorFactory(XclimIndicatorFactory[xc.ResamplingIndicat
             ValueError: If the frequency's period is not an allowed period of
                 the indicator.
         """
-        if "freq" in self.injected_parameters:
-            freq = self.injected_parameters["freq"]
+        if XCLIM_FREQUENCY_KEYWORD in self.injected_parameters:
+            freq = self.injected_parameters[XCLIM_FREQUENCY_KEYWORD]
         elif isinstance(
             self.translator.layer.partitions_def, ResamplingPartitionsDefinition
         ):
-            freq = self.get_partition_key(context, "freq")
+            freq = self.get_partition_key(context, XCLIM_FREQUENCY_KEYWORD)
         else:
             raise dg.DagsterInvalidDefinitionError(
-                f"{obj.identifier}: no frequency configured: set 'freq' in "
+                f"{obj.identifier}: no frequency configured: set '{XCLIM_FREQUENCY_KEYWORD}' in "
                 "injected_parameters or use a ResamplingPartitionsDefinition."
             )
 

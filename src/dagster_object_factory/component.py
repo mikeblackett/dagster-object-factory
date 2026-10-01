@@ -98,7 +98,7 @@ class ObjectFactoryComponent[T, R](dg.Component, ABC):
                 tags=self.tags or ...,
                 kinds=self.kinds or ...,
             ),
-            [self.make_asset(context, item) for item in self.objects],
+            [self.make_asset(context, obj) for obj in self.objects],
         )
         return dg.Definitions(assets=assets)
 
@@ -116,7 +116,7 @@ class ObjectFactoryComponent[T, R](dg.Component, ABC):
         Returns:
             A multi_asset whose outs, ins, and deps come from translating the
             object. At execution it calls ``execute`` and materializes one
-            value per output, with metadata from ``get_metadata``.
+            value per output, with metadata from ``get_result_metadata``.
         """
         translation = self.translator(obj)
 
@@ -138,12 +138,12 @@ class ObjectFactoryComponent[T, R](dg.Component, ABC):
                 yield dg.MaterializeResult(
                     value=value,
                     asset_key=translation.keys_by_output_name[output_name],
-                    metadata=self.get_metadata(context, value),
+                    metadata=self.get_result_metadata(context, value),
                 )
 
         return _asset
 
-    def get_metadata(
+    def get_result_metadata(
         self, context: dg.AssetExecutionContext, value: R
     ) -> dict[str, dg.MetadataValue]:
         """Build the execution metadata of a materialized output value.

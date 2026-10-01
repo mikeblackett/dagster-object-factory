@@ -129,7 +129,9 @@ class DagsterObjectTranslation[T, R]:
             attached to the asset as plain deps, since they do not feed a
             value into an input.
         """
-        return [d.to_dep() for d in self.dependency_specs if d.input_name is None]
+        return [
+            d.to_dep() for d in self.dependency_specs if d.resolved_input_name is None
+        ]
 
     def get_asset_ins(self) -> Mapping[str, dg.AssetIn]:
         """Build the asset inputs of the dependency specs.
@@ -140,9 +142,9 @@ class DagsterObjectTranslation[T, R]:
             ``get_extra_deps``.
         """
         return {
-            d.input_name: d.to_in()
+            d.resolved_input_name: d.to_in()
             for d in self.dependency_specs
-            if d.input_name is not None
+            if d.resolved_input_name is not None
         }
 
     def iter_output_values(self, result: R | Iterable[R]) -> Iterator[tuple[str, R]]:
@@ -204,7 +206,7 @@ class DagsterObjectTranslator[T, R](ABC):
         """Initialize the translator with the layer it translates for."""
         self.layer = layer
 
-    def __call__(self, obj: T) -> DagsterObjectTranslation[T, R]:
+    def __call__(self, obj: T, /) -> DagsterObjectTranslation[T, R]:
         """Translate an object into a DagsterObjectTranslation.
 
         Args:
@@ -230,7 +232,7 @@ class DagsterObjectTranslator[T, R](ABC):
         )
 
     @abstractmethod
-    def resolve_dependency_specs(self, obj: T) -> Iterable[DependencySpec]:
+    def resolve_dependency_specs(self, obj: T, /) -> Iterable[DependencySpec]:
         """Resolve the object's dependencies on the layer's source outputs.
 
         Args:
@@ -242,7 +244,7 @@ class DagsterObjectTranslator[T, R](ABC):
         ...
 
     @abstractmethod
-    def get_name(self, obj: T) -> str:
+    def get_name(self, obj: T, /) -> str:
         """Return the asset name of the object.
 
         Args:
@@ -253,7 +255,7 @@ class DagsterObjectTranslator[T, R](ABC):
         """
         ...
 
-    def get_output_names(self, obj: T) -> tuple[str, ...]:
+    def get_output_names(self, obj: T, /) -> tuple[str, ...]:
         """Return the output names of the object.
 
         Args:
@@ -265,7 +267,7 @@ class DagsterObjectTranslator[T, R](ABC):
         """
         return (self.get_name(obj),)
 
-    def get_keys_by_output_name(self, obj: T) -> Mapping[str, dg.AssetKey]:
+    def get_keys_by_output_name(self, obj: T, /) -> Mapping[str, dg.AssetKey]:
         """Return the asset key of each output of the object.
 
         Args:
@@ -279,7 +281,7 @@ class DagsterObjectTranslator[T, R](ABC):
             for output_name in self.get_output_names(obj)
         }
 
-    def get_description(self, obj: T) -> str | None:
+    def get_description(self, obj: T, /) -> str | None:
         """Return the asset description of the object.
 
         Args:
@@ -290,7 +292,7 @@ class DagsterObjectTranslator[T, R](ABC):
         """
         return None
 
-    def get_descriptions_by_output_name(self, obj: T) -> Mapping[str, str | None]:
+    def get_descriptions_by_output_name(self, obj: T, /) -> Mapping[str, str | None]:
         """Return the description of each output of the object.
 
         Args:
@@ -303,7 +305,7 @@ class DagsterObjectTranslator[T, R](ABC):
         description = self.get_description(obj)
         return {output_name: description for output_name in self.get_output_names(obj)}
 
-    def get_tags(self, obj: T) -> Mapping[str, str] | None:
+    def get_tags(self, obj: T, /) -> Mapping[str, str] | None:
         """Return the tags of the object.
 
         Args:
@@ -314,7 +316,9 @@ class DagsterObjectTranslator[T, R](ABC):
         """
         return {}
 
-    def get_tags_by_output_name(self, obj: T) -> Mapping[str, Mapping[str, str] | None]:
+    def get_tags_by_output_name(
+        self, obj: T, /
+    ) -> Mapping[str, Mapping[str, str] | None]:
         """Return the tags of each output of the object.
 
         Args:
@@ -326,7 +330,7 @@ class DagsterObjectTranslator[T, R](ABC):
         tags = self.get_tags(obj)
         return {output_name: tags for output_name in self.get_output_names(obj)}
 
-    def get_kinds(self, obj: T) -> set[str] | None:
+    def get_kinds(self, obj: T, /) -> set[str] | None:
         """Return the kinds of the object.
 
         Args:
@@ -337,7 +341,7 @@ class DagsterObjectTranslator[T, R](ABC):
         """
         return None
 
-    def get_kinds_by_output_name(self, obj: T) -> Mapping[str, set[str] | None]:
+    def get_kinds_by_output_name(self, obj: T, /) -> Mapping[str, set[str] | None]:
         """Return the kinds of each output of the object.
 
         Args:
@@ -349,7 +353,7 @@ class DagsterObjectTranslator[T, R](ABC):
         kinds = self.get_kinds(obj)
         return {output_name: kinds for output_name in self.get_output_names(obj)}
 
-    def get_metadata(self, obj: T) -> Mapping[str, dg.MetadataValue]:
+    def get_metadata(self, obj: T, /) -> Mapping[str, dg.MetadataValue]:
         """Return the metadata of the object.
 
         Args:
@@ -361,7 +365,7 @@ class DagsterObjectTranslator[T, R](ABC):
         return {}
 
     def get_metadata_by_output_name(
-        self, obj: T
+        self, obj: T, /
     ) -> Mapping[str, Mapping[str, dg.MetadataValue]]:
         """Return the metadata of each output of the object.
 
@@ -375,7 +379,7 @@ class DagsterObjectTranslator[T, R](ABC):
         metadata = self.get_metadata(obj)
         return {output_name: metadata for output_name in self.get_output_names(obj)}
 
-    def get_group_name(self, obj: T) -> str | None:
+    def get_group_name(self, obj: T, /) -> str | None:
         """Return the asset group of the object.
 
         Args:
@@ -386,7 +390,7 @@ class DagsterObjectTranslator[T, R](ABC):
         """
         return self.layer.name
 
-    def get_code_version(self, obj: T) -> str | None:
+    def get_code_version(self, obj: T, /) -> str | None:
         """Return the code version of the object.
 
         Args:
@@ -397,7 +401,7 @@ class DagsterObjectTranslator[T, R](ABC):
         """
         return None
 
-    def get_partitions_def(self, obj: T) -> dg.PartitionsDefinition | None:
+    def get_partitions_def(self, obj: T, /) -> dg.PartitionsDefinition | None:
         """Return the partitions definition of the object.
 
         Args:

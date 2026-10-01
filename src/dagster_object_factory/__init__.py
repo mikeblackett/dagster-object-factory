@@ -4,7 +4,7 @@ from dagster_object_factory.component import (
 from dagster_object_factory.layer import (
     DependencySpec,
     Layer,
-    LayerDependency,
+    LayerDep,
 )
 from dagster_object_factory.translator import (
     DagsterObjectTranslation,
@@ -16,6 +16,6 @@ __all__ = [
     "DagsterObjectTranslator",
     "DependencySpec",
     "Layer",
-    "LayerDependency",
+    "LayerDep",
     "ObjectFactoryComponent",
 ]

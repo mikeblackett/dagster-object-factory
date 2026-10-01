@@ -3,7 +3,7 @@ import xarray as xr
 import xclim.indicators.atmos as indicators
 from xclim.indicators import land
 
-from dagster_object_factory import Layer, LayerDependency
+from dagster_object_factory import Layer, LayerDep
 from dagster_object_factory.integrations.xclim import (
     DagsterXclimIndicatorTranslator,
     XclimIndicatorFactory,
@@ -25,7 +25,7 @@ def _factory(obj, output_names, key_prefix):
         key_prefix=key_prefix,
         output_names=frozenset(output_names),
         python_type=xr.DataArray,
-        sources=(LayerDependency(layer=_variables_layer()),),
+        layer_deps=(LayerDep(layer=_variables_layer()),),
     )
     translator = DagsterXclimIndicatorTranslator(layer=layer)
     return XclimIndicatorFactory(objects=[obj], translator=translator)
