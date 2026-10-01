@@ -1,7 +1,7 @@
 [project]
 name = "dagster-object-factory"
 version = "0.3.0"
-description = "Add your description here"
+description = "Dagster asset factories for callable Python objects."
 readme = "README.md"
 authors = [
     { name = "Mike Blackett", email = "27811528+mikeblackett@users.noreply.github.com" }
