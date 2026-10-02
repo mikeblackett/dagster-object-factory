@@ -6,9 +6,14 @@ dist/
 wheels/
 *.egg-info
 
+.tmp*
+
 # Virtual environments
 .venv
 
-.tmp*
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
 
+# jupyter
 *.ipynb
