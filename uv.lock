@@ -660,7 +660,7 @@ wheels = [
 
 [[package]]
 name = "dagster-object-factory"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "dagster" },
@@ -675,6 +675,7 @@ xclim = [
 [package.dev-dependencies]
 dev = [
     { name = "coverage" },
+    { name = "dagster-object-factory", extra = ["xclim"] },
     { name = "pyright" },
     { name = "pytest" },
     { name = "ruff" },
@@ -691,6 +692,7 @@ provides-extras = ["xclim"]
 [package.metadata.requires-dev]
 dev = [
     { name = "coverage", specifier = ">=7.16.1" },
+    { name = "dagster-object-factory", extras = ["xclim"] },
     { name = "pyright", specifier = ">=1.1.414" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "ruff", specifier = ">=0.16.9" },
