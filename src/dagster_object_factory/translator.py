@@ -226,7 +226,7 @@ class DagsterObjectTranslator[T, R](ABC):
             dependency_specs=tuple(self.resolve_dependency_specs(obj)),
             kinds_by_output_name=self.get_kinds_by_output_name(obj),
             dagster_type=self.layer.python_type,
-            partitions_def=self.get_partitions_def(obj),
+            partitions_def=self.layer.partitions_def,
             code_version=self.get_code_version(obj),
             group_name=self.get_group_name(obj),
         )
@@ -400,14 +400,3 @@ class DagsterObjectTranslator[T, R](ABC):
             The code version. Defaults to None.
         """
         return None
-
-    def get_partitions_def(self, obj: T, /) -> dg.PartitionsDefinition | None:
-        """Return the partitions definition of the object.
-
-        Args:
-            obj: The object to translate.
-
-        Returns:
-            The partitions definition. Defaults to the layer's.
-        """
-        return self.layer.partitions_def

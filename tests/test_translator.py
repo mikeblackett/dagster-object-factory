@@ -1,3 +1,4 @@
+import dagster as dg
 import pytest
 import xarray as xr
 import xclim.indicators.atmos as indicators
@@ -10,7 +11,9 @@ from dagster_object_factory.integrations.xclim import (
 JETSTREAM_OUTPUTS = ["jetlat", "jetstr"]
 
 
-def _translator(output_names, key_prefix=("indicators",), layer_deps=None):
+def _translator(
+    output_names, key_prefix=("indicators",), layer_deps=None, partitions_def=None
+):
     layer = Layer(
         name="indicators",
         key_prefix=key_prefix,
@@ -19,6 +22,7 @@ def _translator(output_names, key_prefix=("indicators",), layer_deps=None):
         layer_deps=layer_deps
         if layer_deps is not None
         else (LayerDep(layer=_variables_layer()),),
+        partitions_def=partitions_def,
     )
     return DagsterXclimIndicatorTranslator(layer=layer)
 
@@ -102,3 +106,12 @@ def test_single_output_description_broadcast():
         translation.get_asset_outs()["frost_days"].description
         == translation.description
     )
+
+
+def test_partitions_def_identity():
+    # Layer is the authoritative source for partitions_def.
+    # A translator/factory should not diverge.
+    obj = indicators.frost_days
+    partitions_def = dg.StaticPartitionsDefinition(["MS", "YS"])
+    translation = _translator(["frost_days"], partitions_def=partitions_def)(obj)
+    assert translation.partitions_def is partitions_def
