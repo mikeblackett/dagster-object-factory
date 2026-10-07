@@ -26,6 +26,7 @@ dependencies = [
 dev = [
     "coverage>=7.16.1",
     "dagster-object-factory[xclim]",
+    "jupyterlab>=4.6.4",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
     "ruff>=0.16.9",
