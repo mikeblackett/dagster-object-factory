@@ -1,7 +1,7 @@
 """Components that execute xclim indicators as dagster assets."""
 
-from collections.abc import Mapping
-from dataclasses import dataclass, field
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any, Final, cast
 
 import dagster as dg
@@ -22,22 +22,14 @@ XCLIM_FREQUENCY_KEYWORD: Final = "freq"
 
 @dataclass(frozen=True, kw_only=True)
 class XclimIndicatorFactory[T: xc.Indicator](ObjectFactoryComponent[T, xr.DataArray]):
-    """An ObjectFactoryComponent that executes xclim indicators.
-
-    Args:
-        injected_parameters: Extra parameters available to execution hooks
-            such as ``resolve_execution_kwargs``; the resampling factory
-            reads the ``freq`` entry from them.
-    """
-
-    injected_parameters: Mapping[str, Any] = field(default_factory=dict)
+    """An ObjectFactoryComponent that executes xclim indicators."""
 
     def execute(
         self,
         context: dg.AssetExecutionContext,
         obj: T,
         ins: Mapping[str, xr.DataArray],
-        **kwargs,
+        **kwargs: Any,
     ) -> xr.DataArray | tuple[xr.DataArray, ...]:
         """Execute the indicator.
 
@@ -66,8 +58,8 @@ class XclimIndicatorFactory[T: xc.Indicator](ObjectFactoryComponent[T, xr.DataAr
 
         Args:
             context: The asset execution context.
-            value: The DataArray being materialized.
 
+            value: The DataArray being materialized.
         Returns:
             The base metadata plus an ``nbytes`` entry for the output's size
             in bytes.
@@ -88,76 +80,114 @@ class XclimIndicatorFactory[T: xc.Indicator](ObjectFactoryComponent[T, xr.DataAr
         """
         return None
 
+    def resolve_injected_kwargs(
+        self, context: dg.ComponentLoadContext, obj: T
+    ) -> dict[str, Any]:
+        for name in self.injected_kwargs:
+            self._validate_injectable_parameter(obj, name)
+        return dict(self.injected_kwargs)
+
+    def _validate_injectable_parameter(self, obj: xc.Indicator, name: str) -> None:
+        try:
+            if name in obj.injected_parameters:
+                raise ValueError(f"parameter {name!r} is already injected by xclim.")
+            if name not in obj.parameters:
+                raise KeyError(f"{name!r} is not a parameter of {obj.identifier!r}.")
+        except (ValueError, KeyError) as error:
+            raise dg.DagsterInvalidDefinitionError(str(error)) from error
+
 
 @dataclass(frozen=True, kw_only=True)
 class XclimResamplingIndicatorFactory(XclimIndicatorFactory[xc.ResamplingIndicator]):
     """An XclimIndicatorFactory for resampling indicators.
 
-    Injects the resampling frequency into the indicator at execution time.
-    The frequency is taken from the ``freq`` entry of ``injected_parameters``
-    or, when the layer uses a ``ResamplingPartitionsDefinition``, from the
-    execution's partition key.
+    Resolves the resampling frequency from the ``freq`` entry of
+    ``injected_kwargs`` at definition time, or, when the layer is partitioned
+    by a ``ResamplingPartitionsDefinition``, from the execution's partition key.
+    Supplying the frequency via both ``injected_kwargs`` and a
+    ``ResamplingPartitionsDefinition`` is a definition error.
     """
 
-    def _resolve_freq(
-        self, context: dg.AssetExecutionContext, obj: xc.ResamplingIndicator
-    ) -> str:
-        """Resolve the resampling frequency of the indicator.
-
-        Args:
-            context: The asset execution context.
-            obj: The resampling indicator.
-
-        Returns:
-            The frequency, checked against the indicator's allowed periods.
-            It comes from the "freq" entry of ``injected_parameters`` if set,
-            otherwise from the execution's partition key (its "freq" dimension
-            for multi-partition keys).
-
-        Raises:
-            dagster.DagsterInvalidDefinitionError: If neither source is
-                configured.
-            ValueError: If the frequency's period is not an allowed period of
-                the indicator.
+    @staticmethod
+    def _resampling_dimension_name(
+        partitions_def: dg.PartitionsDefinition | None,
+    ) -> str | None:
+        """Return the name of the multi-partition dimension backed by a
+        ``ResamplingPartitionsDefinition``, or ``None`` otherwise.
         """
-        if XCLIM_FREQUENCY_KEYWORD in self.injected_parameters:
-            freq = self.injected_parameters[XCLIM_FREQUENCY_KEYWORD]
-        elif isinstance(
-            self.translator.layer.partitions_def, ResamplingPartitionsDefinition
-        ):
-            freq = self.get_partition_key(context, XCLIM_FREQUENCY_KEYWORD)
-        else:
-            raise dg.DagsterInvalidDefinitionError(
-                f"{obj.identifier}: no frequency configured: set '{XCLIM_FREQUENCY_KEYWORD}' in "
-                "injected_parameters or use a ResamplingPartitionsDefinition."
-            )
+        if isinstance(partitions_def, dg.MultiPartitionsDefinition):
+            for partition_dimension in partitions_def.partitions_defs:
+                if isinstance(
+                    partition_dimension.partitions_def,
+                    ResamplingPartitionsDefinition,
+                ):
+                    return partition_dimension.name
+        return None
 
-        allowed_periods = obj.allowed_periods
-        if allowed_periods is None:
-            return freq
-        period = xcal.parse_offset(freq)[1]
-        if period not in allowed_periods:
-            raise ValueError(
-                f"{obj.identifier}: frequency {freq!r} has period {period!r}, "
-                f"which is not allowed (allowed: {allowed_periods!r})."
+    def _is_resampling_partitioned(self) -> bool:
+        """Whether the layer's partitions definition supplies the frequency."""
+        return (
+            isinstance(self.layer.partitions_def, ResamplingPartitionsDefinition)
+            or self._resampling_dimension_name(self.layer.partitions_def) is not None
+        )
+
+    def _get_freq_partition_key(self, context: dg.AssetExecutionContext) -> str | None:
+        """Return the freq string from a partition key or multi-partition key."""
+        partitions_def = self.layer.partitions_def
+
+        if isinstance(partitions_def, ResamplingPartitionsDefinition):
+            return context.partition_key
+
+        dimension = self._resampling_dimension_name(partitions_def)
+        if dimension is None:
+            return
+        partition_key = cast(dg.MultiPartitionKey, context.partition_key)
+        return partition_key.keys_by_dimension[dimension]
+
+    def resolve_injected_kwargs(
+        self, context: dg.ComponentLoadContext, obj: xc.ResamplingIndicator
+    ) -> dict[str, Any]:
+        kwargs = super().resolve_injected_kwargs(context, obj)
+        if XCLIM_FREQUENCY_KEYWORD in kwargs and self._is_resampling_partitioned():
+            raise dg.DagsterInvalidDefinitionError(
+                f"{obj.identifier}: '{XCLIM_FREQUENCY_KEYWORD}' cannot be set in "
+                "injected_kwargs when the layer is partitioned by a "
+                "ResamplingPartitionsDefinition; supply the frequency via either "
+                "the partition key or injected_kwargs, not both."
             )
-        return freq
+        if freq := kwargs.get(XCLIM_FREQUENCY_KEYWORD):
+            try:
+                _validate_freq(freq, obj.allowed_periods)
+            except ValueError as error:
+                raise dg.DagsterInvalidDefinitionError(
+                    f"{obj.identifier}: {error}"
+                ) from error
+        return kwargs
 
     def resolve_execution_kwargs(
         self, context: dg.AssetExecutionContext, obj: xc.ResamplingIndicator
     ) -> dict[str, Any]:
-        """Resolve extra keyword arguments for ``execute``.
+        kwargs = super().resolve_execution_kwargs(context, obj)
+        freq = self._get_freq_partition_key(context)
+        if freq:
+            try:
+                _validate_freq(freq, obj.allowed_periods)
+            except ValueError as error:
+                raise dg.DagsterInvalidDefinitionError(
+                    f"{obj.identifier}: {error}"
+                ) from error
+            kwargs[XCLIM_FREQUENCY_KEYWORD] = freq
+        return kwargs
 
-        Args:
-            context: The asset execution context.
-            obj: The resampling indicator.
 
-        Returns:
-            The "freq" keyword argument, set to the partition key of the
-            resolved frequency.
-        """
-        return {
-            XCLIM_FREQUENCY_KEYWORD: self.get_partition_key(
-                context, self._resolve_freq(context, obj)
-            )
-        }
+def _validate_freq(freq: str, allowed_periods: Sequence[str] | None) -> str:
+    # parse first to catch invalid freqs
+    period = xcal.parse_offset(freq)[1]
+    if allowed_periods is None:
+        return freq
+    if period not in allowed_periods:
+        raise ValueError(
+            f"{freq!r} has period {period!r}, "
+            f"which is not allowed ({allowed_periods!r})."
+        )
+    return freq

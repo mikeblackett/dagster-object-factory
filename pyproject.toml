@@ -1,6 +1,6 @@
 [project]
 name = "dagster-object-factory"
-version = "0.4.0"
+version = "0.5.0"
 description = "Dagster asset factories for callable Python objects."
 readme = "README.md"
 license = "MIT"

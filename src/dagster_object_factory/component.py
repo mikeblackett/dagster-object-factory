@@ -2,11 +2,12 @@
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import dagster as dg
 
+from dagster_object_factory.layer import Layer
 from dagster_object_factory.translator import DagsterObjectTranslator
 
 
@@ -21,6 +22,7 @@ class ObjectFactoryComponent[T, R](dg.Component, ABC):
     Args:
         translator: Translates each object into its asset description.
         objects: Objects to build assets for.
+        injected_kwargs: Extra key word arguments to be passed to the execution hook.
         io_manager_key: IO manager key applied to all asset outs.
         deps: Deps merged into every built asset.
         metadata: Metadata merged into every built asset.
@@ -31,6 +33,7 @@ class ObjectFactoryComponent[T, R](dg.Component, ABC):
 
     translator: DagsterObjectTranslator[T, R]
     objects: Sequence[T]
+    injected_kwargs: Mapping[str, Any] = field(default_factory=dict)
 
     io_manager_key: str | None = None
     deps: Iterable[dg.AssetDep] | None = None
@@ -39,13 +42,18 @@ class ObjectFactoryComponent[T, R](dg.Component, ABC):
     tags: Mapping[str, str] | None = None
     kinds: set[str] | None = None
 
+    @property
+    def layer(self) -> Layer:
+        """A convenience wrapper around ``self.translator.layer``"""
+        return self.translator.layer
+
     @abstractmethod
     def execute(
         self,
         context: dg.AssetExecutionContext,
         obj: T,
         ins: Mapping[str, Any],
-        **kwargs,
+        **kwargs: Any,
     ) -> R | Sequence[R]:
         """Execute the object for a partition.
 
@@ -78,6 +86,25 @@ class ObjectFactoryComponent[T, R](dg.Component, ABC):
             Keyword arguments passed to ``execute``. Defaults to an empty dict.
         """
         return {}
+
+    def resolve_injected_kwargs(
+        self, context: dg.ComponentLoadContext, obj: T
+    ) -> dict[str, Any]:
+        """Resolve the definition-time keyword arguments passed to ``execute``.
+
+        Called once per object at definition time (from ``make_asset``), so
+        validation here fails fast before any asset is scheduled. Subclasses
+        use this to validate or derive static arguments. ``context`` is unused
+        by the base implementation and is a reserved seam for subclasses.
+
+        Args:
+            context: The component load context.
+            obj: The object to build an asset for.
+
+        Returns:
+            A copy of ``injected_kwargs``.
+        """
+        return dict(self.injected_kwargs)
 
     def build_defs(self, context: dg.ComponentLoadContext) -> dg.Definitions:
         """Build the definitions of the component.
@@ -119,6 +146,7 @@ class ObjectFactoryComponent[T, R](dg.Component, ABC):
             value per output, with metadata from ``get_result_metadata``.
         """
         translation = self.translator(obj)
+        injected_kwargs = self.resolve_injected_kwargs(context, obj)
 
         @dg.multi_asset(
             name=translation.name,
@@ -132,7 +160,8 @@ class ObjectFactoryComponent[T, R](dg.Component, ABC):
         def _asset(
             context: dg.AssetExecutionContext, **ins: Any
         ) -> Iterator[dg.MaterializeResult[R]]:
-            kwargs = self.resolve_execution_kwargs(context, obj)
+            execution_kwargs = self.resolve_execution_kwargs(context, obj)
+            kwargs = injected_kwargs | execution_kwargs
             result = self.execute(context, obj, ins, **kwargs)
             for output_name, value in translation.iter_output_values(result):
                 yield dg.MaterializeResult(
@@ -165,21 +194,3 @@ class ObjectFactoryComponent[T, R](dg.Component, ABC):
             The required resource keys. Defaults to an empty set.
         """
         return frozenset()
-
-    def get_partition_key(
-        self, context: dg.AssetExecutionContext, dimension: str
-    ) -> str:
-        """Return the partition key of the execution context for a dimension.
-
-        Args:
-            context: The asset execution context.
-            dimension: Dimension to read for multi-partition keys.
-
-        Returns:
-            The key of the given dimension for multi-partition keys, otherwise
-            the scalar partition key.
-        """
-        key = context.partition_key
-        if isinstance(key, dg.MultiPartitionKey):
-            return key.keys_by_dimension[dimension]
-        return key

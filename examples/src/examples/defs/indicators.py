@@ -12,10 +12,20 @@ from dagster_object_factory.integrations.xclim import (
 
 from .variables import layer as variable_layer
 
-single = Layer(
-    name="indicators",
+single_output = Layer(
+    name="single_output",
+    description="xclim resampling indicators computed over a single frequency.",
     key_prefix=("indicators", "single"),
     output_names=frozenset({"frost_days"}),
+    python_type=xr.DataArray,
+    layer_deps=(LayerDep(layer=variable_layer),),
+)
+
+partitioned_single_output = Layer(
+    name="partitioned_single_output",
+    description="xclim resampling indicators partitioned over frequency.",
+    key_prefix=("indicators", "single", "partitioned"),
+    output_names=frozenset({"tropical_nights"}),
     python_type=xr.DataArray,
     layer_deps=(LayerDep(layer=variable_layer),),
     partitions_def=ResamplingPartitionsDefinition(["MS", "QS-NOV", "YS"]),
@@ -31,10 +41,20 @@ multi = Layer(
 
 
 @dg.component_instance
-def single_indicator_assets(context: dg.ComponentLoadContext):
-    translator = DagsterXclimIndicatorTranslator(layer=single)
+def single_output_assets(context: dg.ComponentLoadContext):
+    translator = DagsterXclimIndicatorTranslator(layer=single_output)
     return XclimResamplingIndicatorFactory(
         objects=[indicators.frost_days],
+        translator=translator,
+        injected_kwargs={"freq": "MS"},
+    )
+
+
+@dg.component_instance
+def partitioned_single_output_assets(context: dg.ComponentLoadContext):
+    translator = DagsterXclimIndicatorTranslator(layer=partitioned_single_output)
+    return XclimResamplingIndicatorFactory(
+        objects=[indicators.tropical_nights],
         translator=translator,
     )
 
