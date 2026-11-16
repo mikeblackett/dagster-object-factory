@@ -1,41 +1,34 @@
 [project]
 name = "dagster-object-factory"
-version = "0.5.1"
+version = "0.6.0"
 description = "Dagster asset factories for callable Python objects."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
-    { name = "Mike Blackett", email = "27811528+mikeblackett@users.noreply.github.com" }
+  { name = "Mike Blackett", email = "27811528+mikeblackett@users.noreply.github.com" },
 ]
 requires-python = ">=3.12"
 classifiers = [
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
-    "Framework :: Dagster",
-    "Topic :: Scientific/Engineering",
-    "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Framework :: Dagster",
+  "Topic :: Scientific/Engineering",
+  "Operating System :: OS Independent",
 ]
-dependencies = [
-    "dagster>=1.13.24",
-]
+dependencies = ["dagster>=1.13.24"]
 
 [dependency-groups]
 dev = [
-    "coverage>=7.16.1",
-    "dagster-object-factory[xclim]",
-    "jupyterlab>=4.6.4",
-    "pyright>=1.1.414",
-    "pytest>=9.1.1",
-    "ruff>=0.16.9",
-]
-
-[project.optional-dependencies]
-xclim = [
-    "xarray>=2026.7.0",
-    "xclim>=0.62.0",
+  "coverage>=7.16.1",
+  "dagster-object-factory",
+  "hypothesis>=6.170.15",
+  "jupyterlab>=4.6.4",
+  "pyright>=1.1.414",
+  "pytest>=9.1.1",
+  "ruff>=0.16.9",
 ]
 
 [project.urls]
@@ -44,7 +37,6 @@ Repository = "https://github.com/mikeblackett/dagster-object-factory"
 [build-system]
 requires = ["uv_build>=0.9.29,<0.10.0"]
 build-backend = "uv_build"
-
 
 [tool.pyright]
 venvPath = "."
@@ -57,11 +49,5 @@ docstring-code-line-length = 79
 [tool.ruff.lint]
 extend-ignore = []
 
-[tool.uv.workspace]
-members = [
-    "examples",
-]
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-
